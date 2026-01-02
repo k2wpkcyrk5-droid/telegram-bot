@@ -1,5 +1,4 @@
 import os
-TOKEN = os.getenv("BOT_TOKEN")
 import time
 import json
 import asyncio
@@ -61,7 +60,6 @@ VARIANT_ALIASES = {
     "gorilla": "Gorilla Glue #4",
     "glue": "Gorilla Glue #4",
     "gg4": "Gorilla Glue #4",
-
     "blue": "Blue Dream",
     "bluedream": "Blue Dream",
     "blue_dream": "Blue Dream",
@@ -91,6 +89,7 @@ ADMIN_ADD_TARGET = {}
 # uid -> order_id (waiting for user refund address)
 PENDING_REFUND_ADDR = {}
 
+
 # =========================
 # DB HELPERS
 # =========================
@@ -101,6 +100,7 @@ def db_exec(q, p=()):
     con.commit()
     con.close()
 
+
 def db_all(q, p=()):
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
@@ -109,16 +109,19 @@ def db_all(q, p=()):
     con.close()
     return rows
 
+
 def db_one(q, p=()):
     rows = db_all(q, p)
     return rows[0] if rows else None
+
 
 def db_init():
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
 
     # Orders include area
-    cur.execute("""
+    cur.execute(
+        """
     CREATE TABLE IF NOT EXISTS orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -139,12 +142,18 @@ def db_init():
         refunded INTEGER NOT NULL DEFAULT 0,
         refund_txid TEXT
     )
-    """)
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_orders_pending ON orders(paid, delivered, expires_at)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_orders_paid_waiting ON orders(paid, delivered)")
+    """
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_orders_pending ON orders(paid, delivered, expires_at)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_orders_paid_waiting ON orders(paid, delivered)"
+    )
 
     # Media pool includes area
-    cur.execute("""
+    cur.execute(
+        """
     CREATE TABLE IF NOT EXISTS media_pool (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         area TEXT NOT NULL,
@@ -154,17 +163,22 @@ def db_init():
         added_at INTEGER NOT NULL,
         used INTEGER NOT NULL DEFAULT 0
     )
-    """)
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_media_pool_lookup ON media_pool(area, variant, weight, used, id)")
+    """
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_media_pool_lookup ON media_pool(area, variant, weight, used, id)"
+    )
 
     con.commit()
     con.close()
+
 
 # =========================
 # UTIL
 # =========================
 def is_admin(uid: int) -> bool:
     return uid in ADMIN_IDS
+
 
 def norm_weight(w: str) -> str:
     w = (w or "").strip().lower().replace("g", "").strip()
@@ -176,14 +190,17 @@ def norm_weight(w: str) -> str:
         return "0.5"
     return w
 
+
 def valid_area_ids():
     return {a for a, _ in AREAS}
+
 
 def area_label(area_id: str) -> str:
     for a, label in AREAS:
         if a == area_id:
             return label
     return area_id
+
 
 def dash_rpc(method: str, params=None):
     if params is None:
@@ -201,12 +218,14 @@ def dash_rpc(method: str, params=None):
         raise RuntimeError(j["error"])
     return j["result"]
 
+
 def get_dash_usd_rate() -> decimal.Decimal:
     url = "https://api.coingecko.com/api/v3/simple/price"
     r = requests.get(url, params={"ids": "dash", "vs_currencies": "usd"}, timeout=10)
     data = r.json()
     usd = data["dash"]["usd"]
     return decimal.Decimal(str(usd))
+
 
 def take_stock_one(area_id: str, variant: str, weight: str):
     row = db_one(
@@ -215,7 +234,10 @@ def take_stock_one(area_id: str, variant: str, weight: str):
     )
     return row  # (media_id, file_id) or None
 
-def stock_count(area_id: str, variant: Optional[str] = None, weight: Optional[str] = None) -> int:
+
+def stock_count(
+    area_id: str, variant: Optional[str] = None, weight: Optional[str] = None
+) -> int:
     q = "SELECT COUNT(*) FROM media_pool WHERE area=? AND used=0"
     p = [area_id]
     if variant is not None:
@@ -227,13 +249,17 @@ def stock_count(area_id: str, variant: Optional[str] = None, weight: Optional[st
     row = db_one(q, tuple(p))
     return int(row[0]) if row else 0
 
+
 # =========================
 # UI (Buttons)
 # =========================
 def kb_main():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🛒 Գնել", callback_data="menu:areas")],
-    ])
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🛒 Գնել", callback_data="menu:areas")],
+        ]
+    )
+
 
 def kb_areas():
     rows = []
@@ -242,10 +268,13 @@ def kb_areas():
             rows.append([InlineKeyboardButton(label, callback_data=f"area:{area_id}")])
 
     if not rows:
-        return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Հետ", callback_data="menu:home")]])
+        return InlineKeyboardMarkup(
+            [[InlineKeyboardButton("⬅️ Հետ", callback_data="menu:home")]]
+        )
 
     rows.append([InlineKeyboardButton("⬅️ Հետ", callback_data="menu:home")])
     return InlineKeyboardMarkup(rows)
+
 
 def kb_variants_for_area(area_id: str):
     rows = []
@@ -256,6 +285,7 @@ def kb_variants_for_area(area_id: str):
     rows.append([InlineKeyboardButton("⬅️ Հետ", callback_data="menu:areas")])
     return InlineKeyboardMarkup(rows)
 
+
 def kb_weights(area_id: str, variant: str):
     rows = []
     for w in ["0.5", "1.0", "2.0"]:
@@ -264,29 +294,52 @@ def kb_weights(area_id: str, variant: str):
         if stock_count(area_id, variant=variant, weight=w) <= 0:
             continue
         price = PRICE_TABLE[variant][w]
-        rows.append([InlineKeyboardButton(f"{w}g — ${price}", callback_data=f"buyw:{area_id}:{variant}:{w}")])
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    f"{w}g — ${price}", callback_data=f"buyw:{area_id}:{variant}:{w}"
+                )
+            ]
+        )
 
     rows.append([InlineKeyboardButton("⬅️ Հետ", callback_data=f"area:{area_id}")])
     return InlineKeyboardMarkup(rows)
 
+
 def kb_paid_out_of_stock(order_id: int):
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("💸 Գումարի վերադարձ", callback_data=f"refund:{order_id}")],
-        [InlineKeyboardButton("⬅️ Հետ", callback_data="menu:home")],
-    ])
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "💸 Գումարի վերադարձ", callback_data=f"refund:{order_id}"
+                )
+            ],
+            [InlineKeyboardButton("⬅️ Հետ", callback_data="menu:home")],
+        ]
+    )
+
 
 # =========================
 # COMMANDS
 # =========================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Բարի գալուստ Լոլա Բոտ 🐰\n", reply_markup=kb_main())
+    await update.message.reply_text(
+        "Բարի գալուստ Լոլա Բոտ 🐰\n", reply_markup=kb_main()
+    )
+
 
 async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = kb_areas()
-    if len(kb.inline_keyboard) == 1 and kb.inline_keyboard[0][0].callback_data == "menu:home":
-        await update.message.reply_text("❌ Հիմա ապրանք չկա (out of stock).", reply_markup=kb_main())
+    if (
+        len(kb.inline_keyboard) == 1
+        and kb.inline_keyboard[0][0].callback_data == "menu:home"
+    ):
+        await update.message.reply_text(
+            "❌ Հիմա ապրանք չկա (out of stock).", reply_markup=kb_main()
+        )
     else:
         await update.message.reply_text("Ընտրիր տարածքը․", reply_markup=kb)
+
 
 async def add_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -304,9 +357,7 @@ async def add_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if len(context.args) != 3:
         await update.message.reply_text(
-            "Usage:\n"
-            "/add gorilla area1 1\n"
-            "/add blue area2 0.5"
+            "Usage:\n" "/add gorilla area1 1\n" "/add blue area2 0.5"
         )
         return
 
@@ -335,6 +386,7 @@ async def add_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Now send photos here.\nSend /done when finished."
     )
 
+
 async def done_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if uid in ADMIN_ADD_TARGET:
@@ -342,6 +394,7 @@ async def done_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ Upload mode OFF.")
     else:
         await update.message.reply_text("No upload mode active.")
+
 
 async def handle_photo_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
@@ -362,8 +415,10 @@ async def handle_photo_upload(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"✅ Added to stock: {area_label(area_id)} / {variant} / {weight}g (now {left} left)"
     )
 
+
 async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Your ID: {update.effective_user.id}")
+
 
 # =========================
 # CALLBACK BUTTON HANDLER
@@ -379,8 +434,13 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "menu:areas":
         kb = kb_areas()
-        if len(kb.inline_keyboard) == 1 and kb.inline_keyboard[0][0].callback_data == "menu:home":
-            await q.edit_message_text("❌ Հիմա ապրանք չկա (out of stock).", reply_markup=kb_main())
+        if (
+            len(kb.inline_keyboard) == 1
+            and kb.inline_keyboard[0][0].callback_data == "menu:home"
+        ):
+            await q.edit_message_text(
+                "❌ Հիմա ապրանք չկա (out of stock).", reply_markup=kb_main()
+            )
         else:
             await q.edit_message_text("Ընտրիր տարածքը․", reply_markup=kb)
         return
@@ -396,7 +456,10 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for btn in row
         )
         if not has_any_variant:
-            await q.edit_message_text("❌ Այս տարածքում հիմա ապրանք չկա։ Ընտրիր ուրիշ տարածք․", reply_markup=kb_areas())
+            await q.edit_message_text(
+                "❌ Այս տարածքում հիմա ապրանք չկա։ Ընտրիր ուրիշ տարածք․",
+                reply_markup=kb_areas(),
+            )
             return
 
         await q.edit_message_text("Ընտրիր տեսակը․", reply_markup=kb)
@@ -406,7 +469,10 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _, area_id, variant = data.split(":", 2)
 
         if stock_count(area_id, variant=variant) <= 0:
-            await q.edit_message_text("❌ Այս տեսակը վերջացել է։ Ընտրիր ուրիշը․", reply_markup=kb_variants_for_area(area_id))
+            await q.edit_message_text(
+                "❌ Այս տեսակը վերջացել է։ Ընտրիր ուրիշը․",
+                reply_markup=kb_variants_for_area(area_id),
+            )
             return
 
         kb = kb_weights(area_id, variant)
@@ -416,7 +482,10 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for btn in row
         )
         if not has_any_weight:
-            await q.edit_message_text("❌ Այս տեսակի համար քաշեր չկան (out of stock)։", reply_markup=kb_variants_for_area(area_id))
+            await q.edit_message_text(
+                "❌ Այս տեսակի համար քաշեր չկան (out of stock)։",
+                reply_markup=kb_variants_for_area(area_id),
+            )
             return
 
         await q.edit_message_text(
@@ -424,25 +493,17 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=kb,
         )
         return
-if data.startswith("buyw:"):
-    _, area_id, variant, weight = data.split(":", 3)
 
-    text = f"TEST OK\nArea: {area_id}\nVariant: {variant}\nWeight: {weight}"
+    if data.startswith("buyw:"):
+        _, area_id, variant, weight = data.split(":", 3)
+        uid = update.effective_user.id
 
-    await q.edit_message_text(
-        text,
-        reply_markup=InlineKeyboardMarkup([...]),
-        parse_mode="Markdown"
-    )
-    return
-
-  if data.startswith("buyw:"):
-    _, area_id, variant, weight = data.split(":", 3)
-    uid = update.effective_user.id
-
-    if stock_count(area_id, variant=variant, weight=weight) <= 0:
-        await q.edit_message_text("❌ Այս քաշը վերջացել է։")
-        return
+        if stock_count(area_id, variant=variant, weight=weight) <= 0:
+            await q.edit_message_text(
+                "❌ Այս քաշը վերջացել է։ Ընտրիր ուրիշ քաշ․",
+                reply_markup=kb_weights(area_id, variant),
+            )
+            return
 
         usd_price = decimal.Decimal(str(PRICE_TABLE[variant][weight]))
         rate = get_dash_usd_rate()
@@ -476,29 +537,27 @@ if data.startswith("buyw:"):
             f"Քաշը: {weight}g\n"
             f"Արժեքը: ${usd_price}\n\n"
             f"Պետք է ուղարկել: {dash_amount} DASH\n"
-            
-f"Հասցեն:\n`{address}`\n\n"
+            f"Հասցեն:\n{address}\n\n"
             f"Չենջ: @swopex\n"
             "⏳ Գործարքն ակտիվ է 15 րոպե"
         )
 
-await message.answer(
-    text,
-    reply_markup=InlineKeyboardMarkup([...])
-)
-
-await q.edit_message_text(
-    text,
-    reply_markup=InlineKeyboardMarkup([...]),
-    parse_mode="Markdown"
-)
-return
+        await q.edit_message_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("⬅️ Հետ", callback_data="menu:home")]]
+            ),
+        )
+        return
 
     if data.startswith("refund:"):
         uid = update.effective_user.id
         order_id = int(data.split(":", 1)[1])
 
-        row = db_one("SELECT id, user_id, paid, delivered, refunded FROM orders WHERE id=?", (order_id,))
+        row = db_one(
+            "SELECT id, user_id, paid, delivered, refunded FROM orders WHERE id=?",
+            (order_id,),
+        )
         if not row:
             await q.edit_message_text("Order not found.", reply_markup=kb_main())
             return
@@ -519,6 +578,7 @@ return
         )
         return
 
+
 # =========================
 # REFUND ADDRESS MESSAGE HANDLER
 # =========================
@@ -529,15 +589,20 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if uid in PENDING_REFUND_ADDR:
         oid = PENDING_REFUND_ADDR.pop(uid)
         if len(txt) < 20 or " " in txt:
-            await update.message.reply_text("❌ That doesn't look like a Dash address. Try again.")
+            await update.message.reply_text(
+                "❌ That doesn't look like a Dash address. Try again."
+            )
             PENDING_REFUND_ADDR[uid] = oid
             return
 
         db_exec("UPDATE orders SET refund_address=? WHERE id=?", (txt, oid))
-        await update.message.reply_text("✅ Refund address saved. Admin will process refund if needed.")
+        await update.message.reply_text(
+            "✅ Refund address saved. Admin will process refund if needed."
+        )
         return
 
     return
+
 
 # =========================
 # ADMIN REFUND SEND
@@ -579,9 +644,12 @@ async def refundsend(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✅ Refunded.\nTXID: {txid}")
 
     try:
-        await context.bot.send_message(chat_id=user_id, text=f"✅ Refund sent.\nTXID: {txid}")
+        await context.bot.send_message(
+            chat_id=user_id, text=f"✅ Refund sent.\nTXID: {txid}"
+        )
     except Exception:
         pass
+
 
 # =========================
 # PAYMENT WATCHER
@@ -612,12 +680,23 @@ async def payment_watcher(app: Application):
                 "FROM orders WHERE paid=0 AND delivered=0 AND refunded=0 ORDER BY id ASC"
             )
 
-            for oid, user_id, area_id, variant, weight, dash_amount, address, expires_at in unpaid:
+            for (
+                oid,
+                user_id,
+                area_id,
+                variant,
+                weight,
+                dash_amount,
+                address,
+                expires_at,
+            ) in unpaid:
                 if now > int(expires_at):
                     continue
 
                 try:
-                    received = dash_rpc("getreceivedbyaddress", [address, MIN_CONFIRMATIONS])
+                    received = dash_rpc(
+                        "getreceivedbyaddress", [address, MIN_CONFIRMATIONS]
+                    )
                     need = decimal.Decimal(str(dash_amount))
                     got = decimal.Decimal(str(received))
                 except Exception:
@@ -652,8 +731,10 @@ async def payment_watcher(app: Application):
 
         await asyncio.sleep(CHECK_SECONDS)
 
+
 async def post_init(app: Application):
     app.create_task(payment_watcher(app))
+
 
 # =========================
 # MAIN
@@ -685,6 +766,6 @@ def main():
 
     app.run_polling()
 
+
 if __name__ == "__main__":
     main()
-
