@@ -425,8 +425,17 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data.startswith("buyw:"):
-        _, area_id, variant, weight = data.split(":", 3)
-        uid = update.effective_user.id
+    ...
+    text = (
+        ...
+    )
+
+    await q.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([...]),
+        parse_mode="Markdown"
+    )
+    return
 
         if stock_count(area_id, variant=variant, weight=weight) <= 0:
             await q.edit_message_text("❌ Այս քաշը վերջացել է։ Ընտրիր ուրիշ քաշ․", reply_markup=kb_weights(area_id, variant))
