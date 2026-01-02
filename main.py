@@ -1,4 +1,5 @@
 import os
+TOKEN = os.getenv("BOT_TOKEN")
 import time
 import json
 import asyncio
