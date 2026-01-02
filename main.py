@@ -470,7 +470,8 @@ f"Հասցեն:\n`{address}`\n\n"
             "⏳ Գործարքն ակտիվ է 15 րոպե"
         )
 
-            text,
+await message.answer(
+    text,
     reply_markup=InlineKeyboardMarkup([...])
 )
 
