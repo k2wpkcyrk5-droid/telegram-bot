@@ -480,7 +480,7 @@ await q.edit_message_text(
     reply_markup=InlineKeyboardMarkup([...]),
     parse_mode="Markdown"
 )
-        return
+return
 
     if data.startswith("refund:"):
         uid = update.effective_user.id
