@@ -436,7 +436,7 @@ if data.startswith("buyw:"):
     )
     return
 
-    if data.startswith("buyw:"):
+  if data.startswith("buyw:"):
     _, area_id, variant, weight = data.split(":", 3)
     uid = update.effective_user.id
 
