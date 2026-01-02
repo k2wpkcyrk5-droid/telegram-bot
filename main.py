@@ -436,9 +436,13 @@ if data.startswith("buyw:"):
     )
     return
 
-        if stock_count(area_id, variant=variant, weight=weight) <= 0:
-            await q.edit_message_text("❌ Այս քաշը վերջացել է։ Ընտրիր ուրիշ քաշ․", reply_markup=kb_weights(area_id, variant))
-            return
+    if data.startswith("buyw:"):
+    _, area_id, variant, weight = data.split(":", 3)
+    uid = update.effective_user.id
+
+    if stock_count(area_id, variant=variant, weight=weight) <= 0:
+        await q.edit_message_text("❌ Այս քաշը վերջացել է։")
+        return
 
         usd_price = decimal.Decimal(str(PRICE_TABLE[variant][weight]))
         rate = get_dash_usd_rate()
