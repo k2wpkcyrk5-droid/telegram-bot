@@ -424,12 +424,10 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=kb,
         )
         return
+if data.startswith("buyw:"):
+    _, area_id, variant, weight = data.split(":", 3)
 
-    if data.startswith("buyw:"):
-    ...
-    text = (
-        ...
-    )
+    text = f"TEST OK\nArea: {area_id}\nVariant: {variant}\nWeight: {weight}"
 
     await q.edit_message_text(
         text,
